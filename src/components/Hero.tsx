@@ -60,7 +60,7 @@ export default function Hero() {
     const onScroll = () => {
       const scrollY = window.scrollY
 
-      if (videoContainerRef.current) {
+      if (videoContainerRef.current && window.innerWidth >= 960) {
         videoContainerRef.current.style.transform = `translateY(${scrollY * 0.3}px)`
       }
 
@@ -104,7 +104,7 @@ export default function Hero() {
         {/* ── LEFT: video ── */}
         <div
           ref={videoContainerRef}
-          className="flex-1 basis-[480px] order-3 min-[960px]:order-none overflow-hidden flex items-end max-[959px]:h-[88vw]"
+          className="flex-1 basis-[480px] order-3 min-[960px]:order-none overflow-hidden flex items-end max-[959px]:flex-none max-[959px]:w-[75%] max-[959px]:mx-auto max-[959px]:aspect-[9/11]"
           style={{ willChange: 'transform' }}
         >
           <video

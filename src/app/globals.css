@@ -95,18 +95,37 @@ body {
   }
 }
 
+/* Hero video — mobile (below 960px): portrait card, crop ~30% from top */
+@media (max-width: 959px) {
+  .hero-video-mid {
+    object-fit: cover !important;
+    object-position: 50% 90% !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin-left: 0 !important;
+    transform: none !important;
+  }
+}
+
 /* Hero video adjustment: 960px–1480px */
 @media (min-width: 960px) and (max-width: 1480px) {
   .hero-video-mid {
-    transform: translateY(-25px);
+    transform: translateY(-195px);
     object-position: center 20%;
+  }
+}
+
+/* Hero video adjustment: 1480px–1680px */
+@media (min-width: 1480px) and (max-width: 1680px) {
+  .hero-video-mid {
+    transform: translateY(-170px);
   }
 }
 
 /* Hero video adjustment: 960px–1119px — additional upward shift to reveal head */
 @media (min-width: 960px) and (max-width: 1119px) {
   .hero-video-mid {
-    transform: translateY(-70px);
+    transform: translateY(-240px);
     object-position: center 15%;
   }
 }
@@ -114,7 +133,7 @@ body {
 /* Hero video adjustment: 960px–1056px — further upward shift to reveal head */
 @media (min-width: 960px) and (max-width: 1056px) {
   .hero-video-mid {
-    transform: translateY(-115px);
+    transform: translateY(-285px);
     object-position: center 12%;
   }
 }
