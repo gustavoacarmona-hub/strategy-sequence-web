@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-dark: #405163;
+  --brand-green: #1FFF9E;
+  --brand-gray: #32373c;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  color: var(--brand-dark);
+  background: #ffffff;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Rotating text animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOutUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+.animate-fade-out-up {
+  animation: fadeOutUp 0.4s ease forwards;
+}
+
+/* ── Logo Wall ── */
+
+@keyframes logoScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Default (outside 1024–1673px): show grid, hide animated */
+.logo-wall-grid     { display: grid; }
+.logo-wall-animated { display: none; }
+
+/* 1024–1673px: hide grid, show animated marquee */
+@media (min-width: 1024px) and (max-width: 1673px) {
+  .logo-wall-grid     { display: none; }
+  .logo-wall-animated { display: block; }
+}
+
+.logo-marquee-row {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+
+/* Row 1 default: scroll left (normal) */
+.logo-marquee-left {
+  animation: logoScroll 28s linear infinite normal;
+}
+
+/* Row 2 default: scroll right (reverse = translateX(-50%)→0) */
+.logo-marquee-right {
+  animation: logoScroll 28s linear infinite reverse;
+}
+
+/* ── Bio grid gap adjustment: 960px–1673px */
+@media (min-width: 960px) and (max-width: 1673px) {
+  .bio-grid {
+    gap: 52px;
+  }
+}
+
+/* Hero video adjustment: 960px–1480px */
+@media (min-width: 960px) and (max-width: 1480px) {
+  .hero-video-mid {
+    transform: translateY(-25px);
+    object-position: center 20%;
+  }
+}
+
+/* Hero video adjustment: 960px–1119px — additional upward shift to reveal head */
+@media (min-width: 960px) and (max-width: 1119px) {
+  .hero-video-mid {
+    transform: translateY(-70px);
+    object-position: center 15%;
+  }
+}
+
+/* Hero video adjustment: 960px–1056px — further upward shift to reveal head */
+@media (min-width: 960px) and (max-width: 1056px) {
+  .hero-video-mid {
+    transform: translateY(-115px);
+    object-position: center 12%;
+  }
+}
+
+/* ── Process section ── */
+
+/* Default (< 767px): stacked, contained */
+.process-content {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.process-video-outer {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.process-steps-outer {
+  margin-top: 2rem;
+}
+
+.process-steps-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+/* 767px–1673px: video full width, steps below in 2×2 grid */
+@media (min-width: 767px) and (max-width: 1673px) {
+  .process-content {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .process-video-outer {
+    border-radius: 0;
+  }
+
+  .process-steps-outer {
+    max-width: 72rem;
+    margin: 2.5rem auto 0;
+    padding: 0 1.5rem;
+  }
+
+  .process-steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+}
+
+/* > 1673px: side-by-side grid */
+@media (min-width: 1674px) {
+  .process-content {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .process-video-outer {
+    border-radius: 1rem;
+  }
+
+  .process-steps-outer {
+    margin-top: 0;
+  }
+
+  .process-steps-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,47 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
+
+export default function Nav() {
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled ? 'bg-white/95 backdrop-blur-sm shadow-sm' : 'bg-transparent'
+      }`}
+    >
+      <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        {/* Logo image */}
+        <a href="#">
+          <Image
+            src="/StatSeqLogo.svg"
+            alt="Strategy Sequence"
+            width={140}
+            height={40}
+            className="h-10 w-auto"
+            priority
+          />
+        </a>
+
+        {/* CTA */}
+        <a
+          href="mailto:strategysequence@gmail.com"
+          className="inline-flex items-center gap-2 bg-[#1FFF9E] text-[#405163] font-bold px-5 py-2 rounded-full text-sm hover:bg-[#00e88a] transition-colors duration-200 shadow-sm"
+        >
+          <span>Say Hello</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 7H13M13 7L7 1M13 7L7 13" stroke="#405163" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </header>
+  )
+}
