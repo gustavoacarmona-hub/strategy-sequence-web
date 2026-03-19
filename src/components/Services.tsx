@@ -2,7 +2,7 @@ import Image from 'next/image'
 
 const services = [
   {
-    icon: '/horse.svg',
+    icon: '/Horse.svg',
     title: 'Brand Strategy',
     description:
       'Define your brand, understand your audience, and communicate your value clearly.',

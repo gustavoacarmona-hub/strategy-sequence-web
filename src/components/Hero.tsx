@@ -57,6 +57,20 @@ export default function Hero() {
   const sectionRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
+    const video = videoElRef.current
+
+    // iOS Safari won't allow currentTime scrubbing until the video has been
+    // "unlocked" by a play() call. On mobile we play() then immediately pause()
+    // once metadata is ready — this is silent and invisible to the user.
+    const unlockForScrubbing = () => {
+      if (!video || window.innerWidth >= 960) return
+      video.play().then(() => {
+        video.pause()
+        video.currentTime = 0
+      }).catch(() => {})
+    }
+    video?.addEventListener('loadedmetadata', unlockForScrubbing)
+
     const onScroll = () => {
       const scrollY = window.scrollY
 
@@ -64,16 +78,19 @@ export default function Hero() {
         videoContainerRef.current.style.transform = `translateY(${scrollY * 0.3}px)`
       }
 
-      const video = videoElRef.current
+      const vid = videoElRef.current
       const section = sectionRef.current
-      if (video && section && video.duration) {
+      if (vid && section && vid.duration) {
         const sectionHeight = section.offsetHeight
         const progress = Math.min(Math.max((scrollY * 1.3) / sectionHeight, 0), 1)
-        video.currentTime = progress * video.duration
+        vid.currentTime = progress * vid.duration
       }
     }
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      video?.removeEventListener('loadedmetadata', unlockForScrubbing)
+    }
   }, [])
 
   useEffect(() => {
