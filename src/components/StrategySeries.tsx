@@ -23,10 +23,10 @@ const videos = [
     url: 'https://youtu.be/7ubbFFXQLyM',
   },
   {
-    id: 'ctW3CdrslYk',
+    id: 'IhiKm97fcP4',
     title: 'How to Set Goals That Actually Work (Life + Business)',
     category: 'Strategy',
-    url: 'https://youtube.com/shorts/ctW3CdrslYk',
+    url: 'https://youtube.com/shorts/IhiKm97fcP4',
   },
 ]
 
