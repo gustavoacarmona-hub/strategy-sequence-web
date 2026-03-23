@@ -22,6 +22,12 @@ const videos = [
     category: 'Retail Strategy',
     url: 'https://youtu.be/7ubbFFXQLyM',
   },
+  {
+    id: 'ctW3CdrslYk',
+    title: 'How to Set Goals That Actually Work (Life + Business)',
+    category: 'Strategy',
+    url: 'https://youtube.com/shorts/ctW3CdrslYk',
+  },
 ]
 
 export default function StrategySeries() {
