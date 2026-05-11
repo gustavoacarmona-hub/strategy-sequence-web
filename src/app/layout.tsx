@@ -21,6 +21,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
+        <meta name="google-site-verification" content="DAvtJh0E7wn9_qAb4H20nR6F3GkB73wY0_ihG6Y_sZg" />
       </head>
       <body>{children}</body>
     </html>
