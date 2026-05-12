@@ -59,6 +59,8 @@ export default function GTHLAssistant() {
   const [mounted, setMounted] = useState(false);
   const recognitionRef = useRef<any>(null);
   const answerRef = useRef<HTMLDivElement>(null);
+  // Guard: prevent multiple simultaneous submissions
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -71,6 +73,9 @@ export default function GTHLAssistant() {
     const trimmed = q.trim();
     if (!trimmed) return;
 
+    // Guard against double-fire (voice bug fix)
+    if (isSubmittingRef.current) return;
+
     if (deviceRemaining <= 0) {
       setError("You've used your 5 free questions today. Come back tomorrow at midnight EST!");
       return;
@@ -81,13 +86,11 @@ export default function GTHLAssistant() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setError('');
     setLoading(true);
     setAnswer(null);
     setQuestion(trimmed);
-
-    const newCount = incrementDeviceCount();
-    setDeviceCount(newCount);
 
     try {
       const res = await fetch('/api/ask', {
@@ -100,17 +103,17 @@ export default function GTHLAssistant() {
 
       if (res.status === 429) {
         setError("Today's 400 community questions have all been used. Come back tomorrow at midnight EST!");
-        setDeviceCount(Math.max(0, newCount - 1));
-        localStorage.setItem('gthl_device_count', String(Math.max(0, newCount - 1)));
         return;
       }
 
       if (!res.ok || data.error) {
         setError(data.error || 'Something went wrong. Please try again.');
-        setDeviceCount(Math.max(0, newCount - 1));
-        localStorage.setItem('gthl_device_count', String(Math.max(0, newCount - 1)));
         return;
       }
+
+      // ✅ Only increment AFTER a successful response
+      const newCount = incrementDeviceCount();
+      setDeviceCount(newCount);
 
       setCommunityRemaining(data.remainingCommunity ?? communityRemaining - 1);
       setAnswer({
@@ -127,38 +130,52 @@ export default function GTHLAssistant() {
       }, 100);
     } catch {
       setError('Connection error. Please check your connection and try again.');
-      setDeviceCount(Math.max(0, newCount - 1));
-      localStorage.setItem('gthl_device_count', String(Math.max(0, newCount - 1)));
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   }, [deviceRemaining, communityRemaining]);
 
+  // FIX: Voice now tap-to-start / tap-to-stop
+  // onresult only fills the text field — does NOT auto-submit
   const handleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
       setError('Voice input is not supported in this browser. Please try Chrome or Safari.');
       return;
     }
+
+    // If already recording, stop and let user review/send manually
     if (isRecording) {
       recognitionRef.current?.stop();
+      setIsRecording(false);
       return;
     }
+
     const recognition = new SR();
     recognitionRef.current = recognition;
     recognition.lang = 'en-CA';
     recognition.interimResults = false;
+    recognition.continuous = false;
+
     recognition.onstart = () => setIsRecording(true);
+
     recognition.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript;
+      // ✅ Only populate the field — user taps Send to submit
       setQuestion(transcript);
-      askQuestion(transcript);
     };
+
     recognition.onerror = () => {
       setError('Could not transcribe audio. Please try again or type your question.');
       setIsRecording(false);
     };
-    recognition.onend = () => setIsRecording(false);
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      // Do NOT call askQuestion here — user controls submission
+    };
+
     recognition.start();
   };
 
@@ -411,7 +428,7 @@ export default function GTHLAssistant() {
         <div style={{ padding: '0 20px 14px' }}>
           <div style={{
             background: '#2C3A45',
-            border: `1.5px solid ${question ? '#00ED8A' : '#3D4F5C'}`,
+            border: `1.5px solid ${isRecording ? '#E84040' : question ? '#00ED8A' : '#3D4F5C'}`,
             borderRadius: '12px',
             display: 'flex',
             alignItems: 'center',
@@ -423,7 +440,7 @@ export default function GTHLAssistant() {
               value={question}
               onChange={e => setQuestion(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && askQuestion(question)}
-              placeholder="Ask about a GTHL rule..."
+              placeholder={isRecording ? 'Listening… tap mic again to stop' : 'Ask about a GTHL rule...'}
               disabled={loading || deviceRemaining === 0}
               style={{
                 flex: 1,
@@ -435,30 +452,44 @@ export default function GTHLAssistant() {
                 color: '#F2F4F3',
               }}
             />
+
+            {/* MIC BUTTON — tap to start, tap again to stop */}
             <button
               onClick={handleVoice}
               disabled={loading || deviceRemaining === 0}
+              title={isRecording ? 'Tap to stop recording' : 'Tap to speak your question'}
               style={{
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                border: 'none',
-                background: isRecording ? '#E84040' : '#3D4F5C',
-                color: '#F2F4F3',
+                border: isRecording ? '2px solid #E84040' : 'none',
+                background: isRecording ? 'rgba(232,64,64,0.2)' : '#3D4F5C',
+                color: isRecording ? '#E84040' : '#F2F4F3',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                animation: isRecording ? 'micPulse 1s ease-in-out infinite' : 'none',
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-              </svg>
+              {isRecording ? (
+                // Stop icon when recording
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2"/>
+                </svg>
+              ) : (
+                // Mic icon when idle
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              )}
             </button>
+
+            {/* SEND BUTTON */}
             <button
               onClick={() => askQuestion(question)}
               disabled={loading || !question.trim() || deviceRemaining === 0}
@@ -482,6 +513,28 @@ export default function GTHLAssistant() {
               </svg>
             </button>
           </div>
+
+          {/* Recording hint */}
+          {isRecording && (
+            <div style={{
+              marginTop: '6px',
+              fontSize: '11px',
+              color: '#E84040',
+              padding: '0 4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}>
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: '#E84040',
+                animation: 'micPulse 1s ease-in-out infinite',
+              }} />
+              Recording… tap the mic to stop, then tap Send
+            </div>
+          )}
 
           {error && (
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#E84040', padding: '0 4px' }}>
@@ -615,6 +668,7 @@ export default function GTHLAssistant() {
                           resize: 'none' as const,
                           outline: 'none',
                           marginBottom: '8px',
+                          boxSizing: 'border-box' as const,
                         }}
                       />
                       <button onClick={submitComment} style={{
@@ -677,6 +731,13 @@ export default function GTHLAssistant() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes micPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </>
   );
 }
