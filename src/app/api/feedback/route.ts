@@ -1,33 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { google } from 'googleapis';
+
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const PRIVATE_KEY = (process.env.GOOGLE_PRIVATE_KEY || '')
+  .replace(/\\n/g, '\n')
+  .replace(/^"/, '')
+  .replace(/"$/, '');
+
+async function appendToSheet(values: string[][]) {
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: CLIENT_EMAIL,
+      private_key: PRIVATE_KEY,
+    },
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: 'Sheet1!A:F',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values,
+    },
+  });
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { question, answer, helpful, comment } = body;
 
-  const GOOGLE_FORM_URL = process.env.GOOGLE_FORM_URL;
+  const date = new Date().toLocaleString('en-CA', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-  if (!GOOGLE_FORM_URL) {
-    console.log('Feedback received (no Google Form configured):', {
-      question,
-      helpful,
-      comment: comment || 'none',
-    });
-    return NextResponse.json({ success: true });
-  }
+  const helpfulText = helpful ? '👍 Yes' : '👎 No';
+  const commentText = comment || '';
+  const shortAnswer = answer ? answer.substring(0, 500) : '';
 
   try {
-    const formData = new URLSearchParams();
-    formData.append(process.env.GOOGLE_FORM_QUESTION_FIELD || 'entry.1', question);
-    formData.append(process.env.GOOGLE_FORM_ANSWER_FIELD || 'entry.2', answer);
-    formData.append(process.env.GOOGLE_FORM_HELPFUL_FIELD || 'entry.3', helpful ? 'Yes' : 'No');
-    formData.append(process.env.GOOGLE_FORM_COMMENT_FIELD || 'entry.4', comment || '');
-    formData.append(process.env.GOOGLE_FORM_DATE_FIELD || 'entry.5', new Date().toISOString());
-
-    await fetch(GOOGLE_FORM_URL, { method: 'POST', body: formData });
+    await appendToSheet([
+      [date, question, shortAnswer, helpfulText, commentText],
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Feedback submission error:', error);
+    console.error('Google Sheets error:', error);
+    // Still return success to user — don't break their experience
     return NextResponse.json({ success: true });
   }
 }
