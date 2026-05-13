@@ -14,31 +14,6 @@ const SAMPLE_QUESTIONS = [
   'Playoff tie-breaking rules?',
 ];
 
-function getTodayKey() {
-  return new Date().toDateString();
-}
-
-function getDeviceCount(): number {
-  if (typeof window === 'undefined') return 0;
-  const stored = localStorage.getItem('gthl_device_count');
-  const storedDate = localStorage.getItem('gthl_device_date');
-  if (storedDate !== getTodayKey()) {
-    localStorage.setItem('gthl_device_count', '0');
-    localStorage.setItem('gthl_device_date', getTodayKey());
-    return 0;
-  }
-  return parseInt(stored || '0', 10);
-}
-
-function incrementDeviceCount(): number {
-  if (typeof window === 'undefined') return 0;
-  const current = getDeviceCount();
-  const next = current + 1;
-  localStorage.setItem('gthl_device_count', String(next));
-  localStorage.setItem('gthl_device_date', getTodayKey());
-  return next;
-}
-
 interface AnswerState {
   text: string;
   question: string;
@@ -54,31 +29,20 @@ export default function GTHLAssistant() {
   const [answer, setAnswer] = useState<AnswerState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [deviceCount, setDeviceCount] = useState(0);
+  const [deviceRemaining, setDeviceRemaining] = useState(DEVICE_DAILY_LIMIT);
   const [communityRemaining, setCommunityRemaining] = useState(COMMUNITY_DAILY_LIMIT);
   const [isRecording, setIsRecording] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const recognitionRef = useRef<any>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
-
-  useEffect(() => {
-    setMounted(true);
-    setDeviceCount(getDeviceCount());
-  }, []);
-
-  const deviceRemaining = mounted ? Math.max(0, DEVICE_DAILY_LIMIT - deviceCount) : DEVICE_DAILY_LIMIT;
 
   const askQuestion = useCallback(async (q: string) => {
     const trimmed = q.trim();
     if (!trimmed) return;
     if (isSubmittingRef.current) return;
-    if (deviceRemaining <= 0) {
+    if (blocked) {
       setError("You've used your 5 free questions today. Come back tomorrow at midnight EST!");
-      return;
-    }
-    if (communityRemaining <= 0) {
-      setError("Today's 400 community questions have all been used. Come back tomorrow at midnight EST!");
       return;
     }
 
@@ -97,18 +61,33 @@ export default function GTHLAssistant() {
 
       const data = await res.json();
 
+      // Server says IP is at limit
       if (res.status === 429) {
-        setError("Today's 400 community questions have all been used. Come back tomorrow at midnight EST!");
+        if (data.error === 'COMMUNITY_LIMIT') {
+          setError("Today's 400 community questions have all been used. Come back tomorrow at midnight EST!");
+        } else {
+          setBlocked(true);
+          setDeviceRemaining(0);
+          setError("You've used your 5 free questions today. Come back tomorrow at midnight EST!");
+        }
         return;
       }
+
       if (!res.ok || data.error) {
         setError(data.error || 'Something went wrong. Please try again.');
         return;
       }
 
-      const newCount = incrementDeviceCount();
-      setDeviceCount(newCount);
-      setCommunityRemaining(data.remainingCommunity ?? communityRemaining - 1);
+      // Update counters from server response
+      const newDeviceRemaining = data.remainingDevice ?? deviceRemaining - 1;
+      const newCommunityRemaining = data.remainingCommunity ?? communityRemaining - 1;
+      setDeviceRemaining(Math.max(0, newDeviceRemaining));
+      setCommunityRemaining(Math.max(0, newCommunityRemaining));
+
+      if (newDeviceRemaining <= 0) {
+        setBlocked(true);
+      }
+
       setAnswer({
         text: data.answer,
         question: trimmed,
@@ -128,7 +107,7 @@ export default function GTHLAssistant() {
       setLoading(false);
       isSubmittingRef.current = false;
     }
-  }, [deviceRemaining, communityRemaining]);
+  }, [blocked, deviceRemaining, communityRemaining]);
 
   const handleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -173,20 +152,18 @@ export default function GTHLAssistant() {
       setAnswer(prev => prev ? { ...prev, feedbackAnimating: false } : null);
     }, 600);
 
-   // Only send immediately for thumbs up
-  // Thumbs down waits for comment submission
-  if (helpful) {
-    await fetch('/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: answer.question,
-        answer: answer.text,
-        helpful: true,
-        comment: '',
-      }),
-    });
-  }
+    if (helpful) {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: answer.question,
+          answer: answer.text,
+          helpful: true,
+          comment: '',
+        }),
+      });
+    }
   };
 
   const submitComment = async () => {
@@ -298,53 +275,68 @@ export default function GTHLAssistant() {
           </p>
         </div>
 
-        {/* INPUT */}
-        <div style={{ padding: '0 20px 14px' }}>
-          <div style={{ background: '#2C3A45', border: `1.5px solid ${isRecording ? '#E84040' : question ? '#00ED8A' : '#3D4F5C'}`, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 8px 8px 16px' }}>
-            <input
-              type="text" value={question}
-              onChange={e => setQuestion(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && askQuestion(question)}
-              placeholder={isRecording ? 'Listening… tap mic again to stop' : 'Ask about a GTHL rule...'}
-              disabled={loading || deviceRemaining === 0}
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: "'Barlow', sans-serif", fontSize: '14px', color: '#F2F4F3' }}
-            />
-            <button onClick={handleVoice} disabled={loading || deviceRemaining === 0}
-              title={isRecording ? 'Tap to stop recording' : 'Tap to speak your question'}
-              style={{ width: '36px', height: '36px', borderRadius: '8px', border: isRecording ? '2px solid #E84040' : 'none', background: isRecording ? 'rgba(232,64,64,0.2)' : '#3D4F5C', color: isRecording ? '#E84040' : '#F2F4F3', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: isRecording ? 'micPulse 1s ease-in-out infinite' : 'none' }}>
-              {isRecording ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" y1="19" x2="12" y2="23"/>
-                  <line x1="8" y1="23" x2="16" y2="23"/>
-                </svg>
-              )}
-            </button>
-            <button onClick={() => askQuestion(question)} disabled={loading || !question.trim() || deviceRemaining === 0}
-              style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', background: loading || !question.trim() || deviceRemaining === 0 ? '#3D4F5C' : '#00ED8A', color: '#1E2A33', cursor: loading || !question.trim() || deviceRemaining === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-              </svg>
-            </button>
-          </div>
-          {isRecording && (
-            <div style={{ marginTop: '6px', fontSize: '11px', color: '#E84040', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#E84040', animation: 'micPulse 1s ease-in-out infinite' }} />
-              Recording… tap the mic to stop, then tap Send
+        {/* BLOCKED STATE */}
+        {blocked && (
+          <div style={{ padding: '0 20px 20px' }}>
+            <div style={{ background: 'rgba(232,64,64,0.1)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: '12px', padding: '20px', textAlign: 'center' as const }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏒</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#E84040', marginBottom: '8px' }}>You've used your 5 questions today</div>
+              <div style={{ fontSize: '13px', color: 'rgba(242,244,243,0.6)', lineHeight: 1.6 }}>
+                Come back tomorrow at midnight EST for 5 more free questions. Thanks for using the GTHL Rules Assistant!
+              </div>
             </div>
-          )}
-          {error && <div style={{ marginTop: '8px', fontSize: '12px', color: '#E84040', padding: '0 4px' }}>{error}</div>}
-        </div>
+          </div>
+        )}
+
+        {/* INPUT */}
+        {!blocked && (
+          <div style={{ padding: '0 20px 14px' }}>
+            <div style={{ background: '#2C3A45', border: `1.5px solid ${isRecording ? '#E84040' : question ? '#00ED8A' : '#3D4F5C'}`, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 8px 8px 16px' }}>
+              <input
+                type="text" value={question}
+                onChange={e => setQuestion(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && askQuestion(question)}
+                placeholder={isRecording ? 'Listening… tap mic again to stop' : 'Ask about a GTHL rule...'}
+                disabled={loading}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: "'Barlow', sans-serif", fontSize: '14px', color: '#F2F4F3' }}
+              />
+              <button onClick={handleVoice} disabled={loading}
+                title={isRecording ? 'Tap to stop recording' : 'Tap to speak your question'}
+                style={{ width: '36px', height: '36px', borderRadius: '8px', border: isRecording ? '2px solid #E84040' : 'none', background: isRecording ? 'rgba(232,64,64,0.2)' : '#3D4F5C', color: isRecording ? '#E84040' : '#F2F4F3', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: isRecording ? 'micPulse 1s ease-in-out infinite' : 'none' }}>
+                {isRecording ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                )}
+              </button>
+              <button onClick={() => askQuestion(question)} disabled={loading || !question.trim()}
+                style={{ width: '36px', height: '36px', borderRadius: '8px', border: 'none', background: loading || !question.trim() ? '#3D4F5C' : '#00ED8A', color: '#1E2A33', cursor: loading || !question.trim() ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+              </button>
+            </div>
+            {isRecording && (
+              <div style={{ marginTop: '6px', fontSize: '11px', color: '#E84040', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#E84040', animation: 'micPulse 1s ease-in-out infinite' }} />
+                Recording… tap the mic to stop, then tap Send
+              </div>
+            )}
+            {error && <div style={{ marginTop: '8px', fontSize: '12px', color: '#E84040', padding: '0 4px' }}>{error}</div>}
+          </div>
+        )}
 
         {/* SAMPLE CHIPS */}
-        {!answer && !loading && (
+        {!answer && !loading && !blocked && (
           <div style={{ padding: '0 20px 16px', display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
             {SAMPLE_QUESTIONS.map((q) => (
-              <button key={q} onClick={() => { setQuestion(q); askQuestion(q); }} disabled={deviceRemaining === 0}
-                style={{ background: '#2C3A45', border: '1px solid #3D4F5C', color: 'rgba(242,244,243,0.7)', fontFamily: "'Barlow', sans-serif", fontSize: '11px', fontWeight: 500, padding: '6px 12px', borderRadius: '20px', cursor: deviceRemaining === 0 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' as const }}>
+              <button key={q} onClick={() => { setQuestion(q); askQuestion(q); }}
+                style={{ background: '#2C3A45', border: '1px solid #3D4F5C', color: 'rgba(242,244,243,0.7)', fontFamily: "'Barlow', sans-serif", fontSize: '11px', fontWeight: 500, padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
                 {q}
               </button>
             ))}
@@ -370,7 +362,6 @@ export default function GTHLAssistant() {
               <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' as const, color: '#00ED8A', marginBottom: '10px' }}>Rulebook Answer</div>
               <div style={{ fontSize: '14px', color: '#F2F4F3', lineHeight: 1.7, marginBottom: '14px', whiteSpace: 'pre-wrap' as const }}>{answer.text}</div>
 
-              {/* FEEDBACK */}
               {!answer.submitted ? (
                 <div style={{ borderTop: '1px solid #3D4F5C', paddingTop: '14px' }}>
                   <div style={{ fontSize: '12px', color: 'rgba(242,244,243,0.6)', marginBottom: '10px', lineHeight: 1.5 }}>
