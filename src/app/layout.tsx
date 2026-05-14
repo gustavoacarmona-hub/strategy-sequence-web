@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -23,6 +24,18 @@ export default function RootLayout({
         />
         <meta name="google-site-verification" content="DAvtJh0E7wn9_qAb4H20nR6F3GkB73wY0_ihG6Y_sZg" />
       </head>
+      <Script
+        src="https://www.googletagmanager.com/gtag/js?id=G-2VK268QEHT"
+        strategy="afterInteractive"
+      />
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-2VK268QEHT');
+        `}
+      </Script>
       <body>{children}</body>
     </html>
   )
